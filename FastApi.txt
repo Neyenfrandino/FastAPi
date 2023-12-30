@@ -2715,7 +2715,9 @@
 				python-dotenv
 				alembic
 				passlib[bcrypt]
+				bcrypt==3.2.0
 				python-jose[cryptography]
+				python-multipart
 
 
 		-Entonces ahora si no entra en ninguno de los if de la funcion auth_user en el archivo auth.py dentro de la carpeta repository, eso significa que la 
@@ -2788,7 +2790,7 @@
 
 
 				class TokenData(BaseModel):
-				    username: str | None = None            		  	
+    				username: Union[str, None] = None              		  	
 				    	------------------------------------------------------------------------------
 
 		-Luego vamos a el archivo token.py y vamos a crear una funcion que va a recibir como parametro un dic - data:dict - en el caso que nosotros 	
@@ -2891,28 +2893,32 @@
 
 
 		-Lo otro que tenemos que hacer seria es añadir las credenciales por si hay un error, por lo tanto devemos importar - HTTPException - y -status-,
-		 y vamos a implementar la logica al la funcion get_current_user.	
+		 y vamos a implementar la logica al la funcion get_current_user. Tambien devemos importarnos -from typing import Annotated- 
+ 	
 
 		 	ej:
 
 		 		from fastapi import Depends, HTTPException, status
-				from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+				from fastapi.security import OAuth2PasswordBearer   
+				from app.token import verify_token
+				from typing import Annotated
 
 				oauth2_scheme = OAuth2PasswordBearer(tokenUrl='login')
 
-				def get_current_user(token: str = Depends(oauth2_scheme)):
+				def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
 				    credentials_exception = HTTPException(
 				        status_code=status.HTTP_401_UNAUTHORIZED,
 				        detail='could not validate credentials',
-				        headers={'WWW.Authenticate': 'Bearer'}
-				    )	  
+				        headers={'WWW-Authenticate': 'Bearer'}
+				    )
+				    return verify_token(token, credentials_exception)
 
 		-Ahora lo que vamos a hacer es la verificacion de los token, vamos a dirigirnos al archivo token.py y vamos a crear una nueva funcion llamada 
 		   -verify_token- y le  vamos a pasar como parametro el token que va a ser un str. Esto lo que hace es decodificar el token le pasa la SECRET_KEY
 		 y tambien le pasa el algoritmo, despues lo que hace es obtener la llave sub que habiamos creado anteriormente, si el username es none significa 
 		 que la llave no existe por lo tanto el usuario no esta autenticado y va a devolver credentials_exception por lo tanto devemos añadir credentials_exception
-		 como parametro y tenemos que enviarla como argumento donde estamos llamando la funcion verify_token. Despues devemos crerar una variable para 
-		 y como valor devemos traernos al tokenData que es el schema que habiamos creado por lo tanto devemos importar ese tokenData 
+		 como parametro y tenemos que enviarla como argumento donde estamos llamando la funcion verify_token. Despues devemos crerar una variable  
+		 y como valor devemos traernos al tokenData que es el schema que habiamos creado por lo tanto devemos importar ese tokenData, 
 
 
 		 	ej:
@@ -2932,15 +2938,17 @@
 				    return encoded_jwt
 
 				    	---------------------------------------------------------------------------------
-				def verify_token(token: str, credentials_exception):
+				def verify_token(token:str, credentials_exception):
 				    try:
 				        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-				        username: str = payload.get('sub')
+				        username: str = payload.get("sub")
 				        if username is None:
 				            raise credentials_exception
 				        token_data = TokenData(username=username)
+				        # return token_data
 				    except JWTError:
-				        raise credentials_exception    
+				        return credentials_exception
+
 				        ---------------------------------------------------------------------------------
 
 
@@ -3011,7 +3019,7 @@
 
 		-Ahora el ultimo cambio seria, nosotros antes le estavamos pasando en la carpeta repository en el archivo auth.py estavamos pasando los usuarios 
 		 como modelos, ahora tenemos que hacer es borrar la variable usuario que tranformavamos a dict, y a donde estavamos haciendo los llamados 
-		 a propiedades de usuario solo devemos hacerlo con un punto (.)
+		 a propiedades de usuario solo devemos hacerlo con un punto (.) ya que estariamos haciendo referencia a un atribujo deun objeto.
 
 		 	ej del archivo completo:
 
@@ -3039,9 +3047,274 @@
 				    )
 				    return{'access token': access_token, 'token_type':'bearer'}		    
     
-							 
 
-																	
+
+    'Implementacion de test'
+
+    	'Obtener el token mediante postman (form-data)'
+
+    		-Ver video numero 26.
+
+
+
+    	'Implementacion de test crear usuario'
+
+    		-Lo primero que vamos a hacer es crear una carpeta que se llame -test- en el proyecto raiz (donde se encuenta nuesta archivo main.py)
+    		-Luego dentro de la carpeta vamos a crear un nuevo archivo que se llame - test_api.py -	
+    		-Despues de ello nosotros vamos a ejecutar los test con -pytest- que lo agregamos directamente al archivo requirments.py y lo instalamos, 
+    		 tambien devemos agregara requests y httpx.
+ 
+
+
+    		-Pytest lo que hace es irce directamente a la carpera, cuando nosotros ejecutamos pytest directamente en consola, esto lo que hace es buscar 
+    		 en la carpeta actual (una carpeta que se llama test) y despues de entrar a la carpeta que se llama test encuentra todos los archivos que 
+    		 comiences por test y depsues de ello lo que hacees que ejecutar toda las dunciones que comiencen directamente por test 
+
+
+    		-Lo siguiente que vamos a hacer es traernos - from fastapi.testclient import TestClient -  TestClient lo que va a hacer principalmente es 
+    		 hacer una peticion de tipo request a la api y la api nos tiene que devolver un si o un no 
+
+    		-Despues de ello vamos a declarar una variable llamada -cliente - que va a ser un objeto de testclient ye pasamos nuestra app. Por lo tanto 
+    		 devemos importarnos de main a nuestra app -from main import app- , luego de ello, si ajecutamos pytest no va a dar un error por que 
+    		 esta buscand la ruta en la carpeta actual, por lo tanto devemos importarnos tambien a - import sys- y a - import os- para poder navegar por
+    		 los directorios, y luego implementamos -sys.path.append(os.path.join(os.path.dirname(__file__), '../'))- que esto lo que va a hacer 
+    		 es devolverce una carpeta atras y buscar el archivo main.py, devemos de asergurarnos de que la importacion de main se haga despues de implementar
+    		 este codigo que vuelve una carpeta atras.  
+
+    		 	ej:
+
+    		 		from fastapi.testclient import TestClient
+					import sys
+					import os
+
+					sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+					from main import app
+
+					cliente= TestClient(app)
+
+
+			-Despues de ello lo que vamos a hacer es ejecutar nuestro primer test de prueva, creando una funcion que se llame - def test_crear_usuario-
+
+			-Ahora como sabemos el al enpoion para crear usuario le teniamos que pasar un body con los valores que ingrese el usuario, lo que vamos  a hacer
+			 es implementar ese body en nuestra funcion y vamos a crear un un objeto llamado -usuario-.
+
+			 	ej:
+
+			 		from fastapi.testclient import TestClient
+					import sys
+					import os
+
+					sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+					from main import app
+
+					cliente= TestClient(app)
+
+						-----------------------------------------------------------------------
+					def test_crear_usuario():
+					    usuario = {
+					        "username": "string",
+					        "password": "string",
+					        "nombre": "string",
+					        "apellido": "string",
+					        "direccion": "string",
+					        "telefono": 0,
+					        "correo": "string",
+					        "creacion": "2023-12-28T09:12:03.423679"
+					    }	
+
+  						-----------------------------------------------------------------------
+
+  			-Ahora nosotros tenemos que hacer un peticion de tipo POST, por es eso lo que recibe la api, y si todo sale bien despues de hacer la peticion
+  			 nos deveria devolver un resultado de 201  por que es el que habiamos pasado anteriormente como status en la creacion de api
+
+  			-Lo que devemos hacer es declarar una variable - response- que va a ser igual al cliente que habiamos declaro antes punto post y directamente 
+  			 le colocamos la ruta, tambien devemos pasarle el usuario en json paraque pase usuario en fromato json a nuestra api.	
+
+  			-Devemos recordr que para que se imprima en consola todos estos metodos devemos ejecutar a - pytest -s -
+
+  			-Lo que me va a imprimir en consola va a ser el status code 201 si salio todo bien, pero s queremos imprimir todos los metodos que tiene
+  			 ese  objeto directamente le podemos poner - print(response, dir(response))-  si queremos devolver el status code - print(response.status_code),
+  			 ademas de devolvernos el status_code tambien nos tiene que devolver un json con el mensaje que le allamos pasado cuando creamos nuestra api
+  			 para cuando se cree un usuario correctamente, para obtener ese json devemos  poner - print(response.json) - 
+
+  			 	ej: 
+
+  			 		from fastapi.testclient import TestClient
+					import sys
+					import os
+
+					sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+					from main import app
+
+					cliente= TestClient(app)
+
+					def test_crear_usuario():
+					    usuario = {
+					        "username": "string",
+					        "password": "string",
+					        "nombre": "string",
+					        "apellido": "string",
+					        "direccion": "string",
+					        "telefono": 0,
+					        "correo": "string",
+					        "creacion": "2023-12-28T09:12:03.423679"
+					    }
+					    -------------------------------------------------------
+   						response = cliente.post('/user/crear_usuario', json=usuario)
+   						print(response)
+					    -------------------------------------------------------
+
+        
+        -Assert: En programación, una aseveración es una declaración que verifica una condición y, si la condición no se cumple, genera una excepción. 
+        Las aserciones se utilizan para verificar la validez de los datos o el estado del programa. Pueden ser útiles para detectar errores temprano, 
+        durante la depuración, o para garantizar que el programa se comporte de la manera esperada
+
+        -Si nosotros colocamos un Assert antes del print para  verificar si el status_code es == a 201, si no lo es me va a devolver un status_code dependiendo del error 
+         que se ocacione. ej de lo que nos devolveria si falla :E       assert 409 == 201E        +  where 409 = <Response [409 Conflict]>.status_code
+         test\test_api.py:22: AssertionError
+        	
+        	ej:
+
+        		from fastapi.testclient import TestClient
+				import sys
+				import os
+
+				sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+				from main import app
+
+				cliente= TestClient(app)
+
+				def test_crear_usuario():
+				    usuario = {
+				        "username": "nn",
+				        "password": "nn",
+				        "nombre": "string",
+				        "apellido": "string",
+				        "direccion": "string",
+				        "telefono": 0,
+				        "correo": "neyen@gmail.com",
+				        "creacion": "2023-12-28T09:12:03.423679"
+				    }
+				    response = cliente.post('/user/crear_usuario', json=usuario)
+				    -----------------------------------------------------------------------------
+				    assert response.status_code == 201
+				    print(response.json())
+				    -----------------------------------------------------------------------------
+				    pass
+
+
+	'Creación de base de datos solo para pruebas y se elimina al terminar los test'			    
+
+
+		-Crearemoa una base de  datos local con sqlite para pruebas.
+
+		-Sabiendo que con - os.path.dirname(__file__) -  obtenemos la direecion actual de donde nos encontramos, lo primero que vamos a hacer 
+		 es colocarle un nombre a la base de datos, esto lo vamos a hacer en nuestro archivo test_api.py  en la carpeta test, y el nombre que le vamos 
+		 a dar a nuestra base de datos de prubas es - db_path - es va a ser igual a - os.path.join(os.path.dirname(__file__), 'test_db'), lo que hace esto
+		 es darle un nombre a nuestra base de datos que la va a ir a buscar dentro de la carpeta test dentro del archivo test_db.
+
+		-Para crear nuestra instancia de sqlite, lo que tenemos que haces es crear una variable llamada -  db_uri - que va a ser igual a 
+		 'sqlite:///{}'.format(db_path), lo que queremos hacer con esta linea es decirle que nuestra coneccion de sqlite esta en la ruta absoluta que hemos 
+		 indicado con el db_path. 
+
+		 	ej:
+
+		 		db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+				db_uri = 'sqlite:///{}'.format(db_path)
+
+		-Despues de ello lo que teemos que hacer es traernos - from sqlalchemy import create_engine - que es con esto que nosotros vamos a crear 
+		 nuestro primer usuario, tambien vamos a traernos -from sqlalchemy.orm import sessionmaker- 
+
+		-Ahora lo que tenemos que hacer es definir la url de la base de datos que generalmente le comolocamos como SQLALCHEMY_DATABASE_URL, entonces
+		 ceamos una variable que se llame SQLALCHEMY_DATABASE_UR que sea igual a db_uri. 
+
+		-Lo que hacemos ahora es crear nuestro engine que lo vamos a llamar - engine_test - que va a ser igual a 
+				- engine_test = create_engine(db_uri, connect_args='check_same_thread': False)- y asi es como creamos el engine
+
+		-Despues de ello devemos declarar un objeto de sessionmaker 
+			- testingSessionLocal = sessionmaker(bind=engine_test, autocommit=False, autoflush=False)- 
+
+		-Despues de ello para crear todas las tablas lo que dvemos hacer es traer nuestro Base de los models por que tiene que interpretar que tablas 
+		 debe crearn entonces lo traemos de - from app.db.models import Base - , despues de traernos a Base devemos colocar 
+		 	-Base.metadata.create_all(bind=engine_test)- , esto lo que va a hacer es crear todas las tablas de nuestra base de datos
+
+		-Y luego corremos con -pytest -s- en consola, y si todo esta bien automaticamente se nos crea la base de datos con el nombre - test_db - 	 
+
+		 		ej:
+
+		 			from fastapi.testclient import TestClient
+					import sys
+					import os
+
+					------------------------------------------------------------------------
+					from sqlalchemy import create_engine
+					from sqlalchemy.orm import sessionmaker
+					------------------------------------------------------------------------
+
+					sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+
+					-------------------------------------------------------------------------
+					from app.db.models import Base
+
+					db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+					db_uri = 'sqlite:///{}'.format(db_path)
+					SQLALCHEMY_DATABASE_URL = db_uri
+					engine_test = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False})
+					testingSessionLocal = sessionmaker(bind=engine_test, autocommit=False, autoflush=False)
+					Base.metadata.create_all(bind=engine_test)
+					-------------------------------------------------------------------------
+
+					from main import app
+
+					cliente= TestClient(app)
+
+					def test_crear_usuario():
+					    usuario = {
+					        "username": "nn",
+					        "password": "nn",
+					        "nombre": "string",
+					        "apellido": "string",
+					        "direccion": "string",
+					        "telefono": 0,
+					        "correo": "neyen@gmail.com",
+					        "creacion": "2023-12-28T09:12:03.423679"
+					    }
+					    response = cliente.post('/user/crear_usuario', json=usuario)
+					    assert response.status_code == 201
+					    print(response.json())
+					    pass
+
+
+		-Lo que devemos hacer hora, es copiar la ruta de la base de datos haciendo click derecho sobre el archivo y copiar acceso, luego nos vamos a 
+		 nuestro dBeaver y vamos a colocar nueva coneccion, colocamos que va a ser de sqlite y pegamos la ruca que habiamos copiado, provamos coneccion 
+		 y luego le ponemos un nombre mas leelevante para que entendamos de donde viene esa base de datos y para que por ejemplo - test_db_fastapi- 
+
+
+		-Ahora lo que tenemos que hacer es insertar un nuevo usuario. Vamos a crear una funcion que se llame - def insertar_usuario_prueba():-
+		 que lo que va a hacer es ejecutar una cosulta sql, por lo tanto devemos crear en esta funcion tambien la apertura de la base de datos 
+		 y el cierre como tal, por lo tando devemos crear un try y un finally. Tambien devemos importarnos a text - from sqlalchemy import tetx -
+
+		 	ej:
+
+		 		def insertar_usuario_prueba():
+				    session = testingSessionLocal()
+				    try:
+				        statement = text(
+				            """
+				            INSERT INTO usuario(username, password, nombre, apellido, direccion, telefono, correo)
+				            VALUES('pueba', 'prueba123', 'prueba_nombre', 'prueba_apellido', 'prueba_direcc', 1234, 'Neyen@gmail.com')
+				            """
+				        )
+				        session.execute(statement)
+				        session.commit()
+				    finally:
+				        session.close()
+
+		-Tambien 
+
+		
+
+																					
 
 
 
