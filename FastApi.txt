@@ -3310,20 +3310,211 @@
 				    finally:
 				        session.close()
 
-		-Tambien 
+		-Resulta y pasa que aasi como esta esta funcion la contraseña me la esta pasando como string, por lo tanto lo que devemos hacer es pasarla a hash
 
-		
+		-Lo que vamos a hacer vamos directamente a hashing.py y vamos a hashear la contrseña, y nosvamos a traer la funcion hash 
+			- from app.hashing import Hash- y dentro de la funcion insertar_usuario_prueba declaramos una variable llamada - password_hash-
+		y de valor hacemos el llamado a la funcion hash.hash_password('prueba123'), y luego en values directamente le pasamos la variable, asi hasheamos 
+		la contraseña
 
-																					
+			ej:	
+
+				from fastapi.testclient import TestClient
+				import sys
+				import os
+				from sqlalchemy import create_engine
+				from sqlalchemy import text
+				from sqlalchemy.orm import sessionmaker
+				sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+				from app.db.models import Base
+
+				----------------------------------------------------------------------
+				from app.hashing import Hash
+				----------------------------------------------------------------------
+
+				db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+				db_uri = 'sqlite:///{}'.format(db_path)
+				SQLALCHEMY_DATABASE_URL = db_uri
+				engine_test = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False})
+				testingSessionLocal = sessionmaker(bind=engine_test, autocommit=False, autoflush=False)
+				Base.metadata.create_all(bind=engine_test)
+
+
+				from main import app
+
+				cliente= TestClient(app)
+
+				
+				def insertar_usuario_prueba():
+
+				    password_hash = Hash.hash_password('prueba123')
+				    statement = text(
+				    f"""
+				    INSERT INTO usuario(username, password, nombre, apellido, direccion, telefono, correo)
+				    VALUES('pueba', '{password_hash}', 'prueba_nombre', 'prueba_apellido', 'prueba_direcc', 1234, 'Neyen@gmail.com')
+				    """
+				)
+				insertar_usuario_prueba()
+
+				def test_crear_usuario():
+				    usuario = {
+				        "username": "nn",
+				        "password": "nn",
+				        "nombre": "string",
+				        "apellido": "string",
+				        "direccion": "string",
+				        "telefono": 0,
+				        "correo": "neyen@gmail.com",
+				        "creacion": "2023-12-28T09:12:03.423679"
+				    }
+				    # response = cliente.post('/user/crear_usuario', json=usuario)
+				    # assert response.status_code == 201
+				    # print(response.json())
+				    # pass	 
+
+		-Lo tro que deveriamo hacer que es importante es ahacer referecia a la bas de datos de prueba para que podamos trabajar con ella sin interferir en 
+		 la base de datos original. Para ello devemos crear la funcion que abra y cierre la coneccion a la base de dato de pruebas, despues de ello devemos 	
+		 traernos el get_db que esta en la carpeta db yen el archivo database.py - from app.db.database import get_db-, despues de ello nosotros vamos a 
+		 hacerle un override a la base de datos que ya a la base de datos que tenia en la aplicacion guardada y la tenemos que reemplazar con la conexion 
+		 que tenemos en sqlite 
+
+		 	ej:
+		 		from app.db.database import get_db
+
+		 		def override_get_db():
+				    db = testingSessionLocal()
+				    try:
+				        yield db   
+				    finally:   
+				        db.close()
+				app.dependency_overrides[get_db] = override_get_db
+
+
+
+		-Lo otro que deveriamos hacer eliminar la base de datos deprueva para que podamos seguir haciendo pruevas y no nos tire el error que ya tenemos el	
+		 usuario o algun parametro de usuario repetido. 
+
+		-Para ello devemos crearuna nueca funcion que se llame - def test_delete_database()- le pasamos el db_path completo que va a ser el mismo que antes 
+			-db_path = os.path.join(os.path.dirname(__file__), 'test_db')- y lo que tenemos que hacer ew colocarle -os.remove(db_path)
+
+			ej:
+
+				def test_delete_database():
+				    db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+
+				    # Cerrar todas las conexiones o sesiones de la base de datos
+				    engine_test.dispose()
+
+				    # Introducir un pequeño retraso antes de intentar eliminar el archivo
+				    time.sleep(1)
+
+				    # Intentar eliminar el archivo
+				    try:
+				        os.remove(db_path)
+				        print(f"Archivo de base de datos eliminado: {db_path}")
+				    except FileNotFoundError:
+				        print(f"El archivo de base de datos no existe: {db_path}")
+				    except Exception as e:
+				        print(f"Error al eliminar la base de datos: {e}")
+
+
+
+		ej de como se ve el archivo :
+			
+			from fastapi.testclient import TestClient
+			import sys
+			import os
+			from sqlalchemy import create_engine
+			from sqlalchemy import text
+			from sqlalchemy.orm import sessionmaker
+			sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+			from app.db.models import Base
+			from app.hashing import Hash
+			from app.db.database import get_db
+			import time
+
+			db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+			db_uri = 'sqlite:///{}'.format(db_path)
+			SQLALCHEMY_DATABASE_URL = db_uri
+			engine_test = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False})
+			testingSessionLocal = sessionmaker(bind=engine_test, autocommit=False, autoflush=False)
+			Base.metadata.create_all(bind=engine_test)
+
+			from main import app
+
+			cliente= TestClient(app)
+
+			def override_get_db():
+			    db = testingSessionLocal()
+			    try:
+			        yield db   
+			    finally:   
+			        db.close()
+			app.dependency_overrides[get_db] = override_get_db
+
+
+			def insertar_usuario_prueba():
+
+			    password_hash = Hash.hash_password('prueba123')
+			    statement = text(
+			    f"""
+			    INSERT INTO usuario(username, password, nombre, apellido, direccion, telefono, correo)
+			    VALUES('pueba', '{password_hash}', 'prueba_nombre', 'prueba_apellido', 'prueba_direcc', 1234, 'Neyen@gmail.com')
+			    """
+			)
+			   
+			insertar_usuario_prueba()
+
+			def test_crear_usuario():
+			    usuario = {
+			        "username": "nn",
+			        "password": "nn",
+			        "nombre": "string",
+			        "apellido": "string",
+			        "direccion": "string",
+			        "telefono": 0,
+			        "correo": "neyen@gmail.com",
+			        "creacion": "2023-12-28T09:12:03.423679"
+			    }
+			    response = cliente.post('/user/crear_usuario', json=usuario)
+			    assert response.status_code == 201
+			    print(response.json())
+			    pass
+
+			def test_delete_database():
+			    db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+
+			    # Cerrar todas las conexiones o sesiones de la base de datos
+			    engine_test.dispose()
+
+			    # Introducir un pequeño retraso antes de intentar eliminar el archivo
+			    time.sleep(2)
+
+			    # Intentar eliminar el archivo
+			    try:
+			        os.remove(db_path)
+			        print(f"Archivo de base de datos eliminado: {db_path}")
+			    except FileNotFoundError:
+			        print(f"El archivo de base de datos no existe: {db_path}")
+			    except Exception as e:
+			        print(f"Error al eliminar la base de datos: {e}")		    	    
+																		
+
+	-'Test crear usuario enviando el JWT'
+	
+
+		-Si nosotros queremos hacer las pruevas en la nueva base de datos, pero las rutas en donde nosotros hacemos las peticiones estan 
+		 protegidas por un token. 
+																											
 
 
 
 
 
 
-					          	      	    
-																									   							 
-																														            	        	
+								          	      	    
+																												   							 
+																																	            	        	
 																											   
 																									  		    
 

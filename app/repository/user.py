@@ -41,7 +41,7 @@ def eliminar_usuario(user_id, db:Session):
                             detail=f'No existe el usuario con el id {user_id}')
     usuario.delete(synchronize_session=False)
     db.commit()	
-    return{'Respuesta: El usuario a sido eliminado correctamente'}
+    return{'Respuesta': 'El usuario a sido eliminado correctamente'}
 
 
 def obetener_usuario(db:Session):
@@ -64,5 +64,5 @@ def actualizar_usuario(user_id, updateUser, db:Session):
         
     usuario.update(nuevo_valor)
     db.commit()
-    return{'Respuesta: El usuario ha sido modificado correctamente'}
+    return{'Respuesta':'El usuario ha sido modificado correctamente'}
 

@@ -15,27 +15,27 @@ def obtener_usuarios(db:Session = Depends(get_db), current_user: User = Depends(
     return data 
 
 @router.post('/crear_usuario', status_code=status.HTTP_201_CREATED)
-def crear_usuario(usuario:User, db:Session = Depends(get_db)):
+def crear_usuario(usuario:User, db:Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     user.crear_usuario(usuario, db)
  
-    return {'Respuesta: Usuario creado exitosamente!!'}
+    return {'Respuesta': 'Usuario creado exitosamente!!'}
 
     
-@router.post('/{user_id}', response_model= showUser, status_code=status.HTTP_200_OK)
-def obtener_usuario_por_id_2(user_id:int, db:Session = Depends(get_db)):
+@router.get('/{user_id}', response_model= showUser, status_code=status.HTTP_200_OK)
+def obtener_usuario_por_id_2(user_id:int, db:Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     usuario = user.obetener_usuario_por_id(user_id, db)
     return usuario
 
 
 @router.delete('/{user_id}', status_code=status.HTTP_200_OK)
-def eliminar_usuario(user_id:int, db:Session = Depends(get_db)):
+def eliminar_usuario(user_id:int, db:Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     respuesta = user.eliminar_usuario(user_id, db)
 
     return respuesta
 
 
 @router.patch('/{user_id}', status_code=status.HTTP_200_OK)
-def actualizar_usuario(user_id:int, updateUser:UpdateUser, db:Session = Depends(get_db)):
+def actualizar_usuario(user_id:int, updateUser:UpdateUser, db:Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     respuesta = user.actualizar_usuario(user_id, updateUser, db)
     return respuesta
    
