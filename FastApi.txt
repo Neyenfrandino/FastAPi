@@ -3450,19 +3450,22 @@
 			        yield db   
 			    finally:   
 			        db.close()
+
 			app.dependency_overrides[get_db] = override_get_db
 
-
 			def insertar_usuario_prueba():
-
+			    db = testingSessionLocal()
 			    password_hash = Hash.hash_password('prueba123')
 			    statement = text(
-			    f"""
-			    INSERT INTO usuario(username, password, nombre, apellido, direccion, telefono, correo)
-			    VALUES('pueba', '{password_hash}', 'prueba_nombre', 'prueba_apellido', 'prueba_direcc', 1234, 'Neyen@gmail.com')
-			    """
-			)
-			   
+			        f"""
+			        INSERT INTO usuario(username, password, nombre, apellido, direccion, telefono, correo)
+			        VALUES('prueba', '{password_hash}', 'prueba_nombre', 'prueba_apellido', 'prueba_direcc', 1234, 'Neyen@gmail.com')
+			        """
+			    )
+			    db.execute(statement)
+			    db.commit()
+
+
 			insertar_usuario_prueba()
 
 			def test_crear_usuario():
@@ -3479,7 +3482,6 @@
 			    response = cliente.post('/user/crear_usuario', json=usuario)
 			    assert response.status_code == 201
 			    print(response.json())
-			    pass
 
 			def test_delete_database():
 			    db_path = os.path.join(os.path.dirname(__file__), 'test_db')
@@ -3504,8 +3506,441 @@
 	
 
 		-Si nosotros queremos hacer las pruevas en la nueva base de datos, pero las rutas en donde nosotros hacemos las peticiones estan 
-		 protegidas por un token. 
-																											
+		 protegidas por un token, lo que devemos hacer es lo siguente 
+
+		-Necesitamos obtener el JWT
+		-Lo primero que dvemos modificar es que si no estamos autenticados y hacemos una solicitud de tipo post, queremos que nos devuelva el error
+		 401 entonces vamos a modificar el assert de la funcion 
+
+		 	ej:
+
+		 		def test_crear_usuario():
+				    usuario = {
+				        "username": "nn",
+				        "password": "nn",
+				        "nombre": "string",
+				        "apellido": "string",
+				        "direccion": "string",
+				        "telefono": 0,
+				        "correo": "neyen@gmail.com",
+				        "creacion": "2023-12-28T09:12:03.423679"
+				    }
+				    response = cliente.post('/user/crear_usuario', json=usuario)
+
+				    -----------------------------------------------------
+				    assert response.status_code == 401
+				    -----------------------------------------------------
+
+				    print(response.json())
+				    pass
+
+		-Para obtener el JWT lo que devemos hacer en primer lugar es declarar un dict con el nombre - usuario_token- en el que las llaves van a ser 
+		 username y password y los valores van a ser, 'username': 'pueba' ese prueva viene de los valores que le pasamos al usuario de prueba, lo mismo
+		 con el password, 'password':'prueba123',
+
+		-Lo que tebemos que hacer es crear una form-data es lo siguiente, vamos a crear un nuevo -response_token- que sea igual directamente al 
+			-cliente.post(/login), y para enviar la form-data solo le pasamos al cliente la data que habiamos declara en forma data   
+
+			ej:
+
+				def test_crear_usuario():
+				    usuario = {
+				        "username": "nn",
+				        "password": "nn",
+				        "nombre": "string",
+				        "apellido": "string",
+				        "direccion": "string",
+				        "telefono": 0,
+				        "correo": "neyen@gmail.com",
+				        "creacion": "2023-12-28T09:12:03.423679"
+				    }
+				    response = cliente.post('/user/crear_usuario', json=usuario)
+				    assert response.status_code == 401
+				    ---------------------------------------------------------------------------
+				    usuario_token = {
+				        'username': 'prueba',
+				        'password': 'prueba123'
+				    }
+
+				    response_token = cliente.post('/login/', data= usuario_token)
+				    print(response_token)
+				    print(response_token.json())
+				    ---------------------------------------------------------------------------
+
+		-Ahora lo que vamos a hacer en validar que el token_type sea bearer con un - assert response_token.json()['token_type'] == 'bearer',
+		 y tambien vamos a validar el status_code con otro assert - assert response_token.status_code == 200
+
+
+		-Ahora lo que vamos a hacer es intentar crear un usuario y para ello devemos crear uns headers que sea un dict, y le vamos a sar como llave 
+		 	-'Authorization': 'Bearer'- y el valos de va a ser de tipo bearer y despues de pasamos el token que el token se encuentra en 
+		 response_token.json()['access_token'] 		 	-'Authorization':f'Bearer {response_token.json()["access_token"]}'-
+		
+
+		-Entonces es este headers lo que le tenemos que pasar cuando nosotros hagamos una nueva peticion de tipo post 
+		-Y por ultimo vamos a hacer una validacion 
+
+
+			ej:
+
+				from fastapi.testclient import TestClient
+				import sys
+				import os
+				from sqlalchemy import create_engine
+				from sqlalchemy import text
+				from sqlalchemy.orm import sessionmaker
+				sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+				from app.db.models import Base
+				from app.hashing import Hash
+				from app.db.database import get_db
+				import time
+
+				db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+				db_uri = 'sqlite:///{}'.format(db_path)
+				SQLALCHEMY_DATABASE_URL = db_uri
+				engine_test = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False})
+				Base.metadata.create_all(bind=engine_test)
+
+				from main import app
+
+				cliente= TestClient(app)
+				testingSessionLocal = sessionmaker(bind=engine_test, autocommit=False, autoflush=False)
+
+
+				def override_get_db():
+
+				    db = testingSessionLocal()
+				    try:
+				        yield db   
+				    finally:   
+				        db.close()
+
+				app.dependency_overrides[get_db] = override_get_db
+
+
+				def insertar_usuario_prueba():
+				    db = testingSessionLocal()
+				    password_hash = Hash.hash_password('prueba123')
+				    statement = text(
+				        f"""
+				        INSERT INTO usuario(username, password, nombre, apellido, direccion, telefono, correo)
+				        VALUES('prueba', '{password_hash}', 'prueba_nombre', 'prueba_apellido', 'prueba_direcc', 1234, 'Neyen@gmail.com')
+				        """
+				    )
+				    db.execute(statement)
+				    db.commit()
+
+				insertar_usuario_prueba()
+
+				def test_crear_usuario():
+				    usuario = {
+				        "username": "nn",
+				        "password": "nn",
+				        "nombre": "string",
+				        "apellido": "string",
+				        "direccion": "string",
+				        "telefono": 0,
+				        "correo": "neyen@gmail.com",
+				        "creacion": "2023-12-28T09:12:03.423679"
+				    }
+				    response = cliente.post('/user/crear_usuario', json=usuario)
+				    assert response.status_code == 401
+				    usuario_token = {
+				        'username': 'prueba',
+				        'password': 'prueba123'
+				    }
+
+				    response_token = cliente.post('/login/', data= usuario_token)
+				    print(response_token)
+				    print(response_token.json())
+				    assert response_token.status_code == 200
+				    assert response_token.json()['token_type'] == 'bearer'
+
+				    headers = {
+				        'Authorization':f"Bearer {response_token.json()['access token']}"
+				    }
+
+				    response = cliente.post('/user/crear_usuario', json=usuario, headers=headers)
+
+
+				def test_delete_database():
+				    db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+
+				    # Cerrar todas las conexiones o sesiones de la base de datos
+				    engine_test.dispose()
+
+				    # Introducir un pequeño retraso antes de intentar eliminar el archivo
+				    time.sleep(2)
+
+				    # Intentar eliminar el archivo
+				    try:
+				        os.remove(db_path)
+				        print(f"Archivo de base de datos eliminado: {db_path}")
+				    except FileNotFoundError:
+				        print(f"El archivo de base de datos no existe: {db_path}")
+				    except Exception as e:
+				        print(f"Error al eliminar la base de datos: {e}")
+
+	'Test obtener usuarios enviando el JWT'
+		
+		-Para obtener los usuario tambien devemos estas logeado ya que es el parametro que le pasamos a nuestra api, pero como ya hicimos el trabajo de 
+		 loguearnos antes ahora es mas facil.
+
+		-Ahora vamos a crear el test, vamos a crear una funcion que se llame - def test_obtener_usuarios(): -, este test tiene que realizar el mismo proseso
+		 de login ya que devemos obtener el JWT.
+
+		 	ej:
+		 		def test_obtener_usuarios():
+				    usuario_login = {
+				    'username': 'prueba',
+				    'password': 'prueba123'
+				    }
+
+				    response_token = cliente.post('/login/', data= usuario_login)
+				    # print(response_token)
+				    # print(response_token.json())
+				    assert response_token.status_code == 200
+				    assert response_token.json()['token_type'] == 'bearer'
+
+				    headers = {
+				        'Authorization':f"Bearer {response_token.json()['access token']}"
+				    }
+
+		-Despues tenemos que hacer una solicitud de tipo get a la api, entonces le colocamos, RECORDEMOS QUE EL CLIENTE ES EL QUE LE HACE EL REQUEST A LA API
+			 - response = cliente.get('/user/', headers=headers)
+
+
+			 ej:
+
+			 	from fastapi.testclient import TestClient
+				import sys
+				import os
+				from sqlalchemy import create_engine
+				from sqlalchemy import text
+				from sqlalchemy.orm import sessionmaker
+				sys.path.append(os.path.join(os.path.dirname(__file__), '../'))
+				from app.db.models import Base
+				from app.hashing import Hash
+				from app.db.database import get_db
+				import time
+
+				db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+				db_uri = 'sqlite:///{}'.format(db_path)
+				SQLALCHEMY_DATABASE_URL = db_uri
+				engine_test = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={'check_same_thread': False})
+				Base.metadata.create_all(bind=engine_test)
+
+				from main import app
+
+				cliente= TestClient(app)
+				testingSessionLocal = sessionmaker(bind=engine_test, autocommit=False, autoflush=False)
+
+
+				def override_get_db():
+
+				    db = testingSessionLocal()
+				    try:
+				        yield db   
+				    finally:   
+				        db.close()
+
+				app.dependency_overrides[get_db] = override_get_db
+
+
+				def insertar_usuario_prueba():
+				    db = testingSessionLocal()
+				    password_hash = Hash.hash_password('prueba123')
+				    statement = text(
+				        f"""
+				        INSERT INTO usuario(username, password, nombre, apellido, direccion, telefono, correo)
+				        VALUES('prueba', '{password_hash}', 'prueba_nombre', 'prueba_apellido', 'prueba_direcc', 1234, 'Neyen@gmail.com')
+				        """
+				    )
+				    db.execute(statement)
+				    db.commit()
+
+				insertar_usuario_prueba()
+
+				def test_crear_usuario():
+				    usuario = {
+				        "username": "nn",
+				        "password": "nn",
+				        "nombre": "string",
+				        "apellido": "string",
+				        "direccion": "string",
+				        "telefono": 0,
+				        "correo": "neyen@gmail.com",
+				        "creacion": "2023-12-28T09:12:03.423679"
+				    }
+				    response = cliente.post('/user/crear_usuario', json=usuario)
+				    assert response.status_code == 401
+				    usuario_login = {
+				        'username': 'prueba',
+				        'password': 'prueba123'
+				    }
+
+				    response_token = cliente.post('/login/', data= usuario_login)
+				    # print(response_token)
+				    # print(response_token.json())
+				    assert response_token.status_code == 200
+				    assert response_token.json()['token_type'] == 'bearer'
+
+				    headers = {
+				        'Authorization':f"Bearer {response_token.json()['access token']}"
+				    }
+
+				    response = cliente.post('/user/crear_usuario', json=usuario, headers=headers)
+				    print(response.status_code)
+				    print(response.json())
+				    assert response.status_code == 201
+				    assert response.json()['Respuesta'] == 'Usuario creado exitosamente!!'
+
+				    -------------------------------------------------------------------------------------------------------
+				def test_obtener_usuarios():
+				    usuario_login = {
+				    'username': 'prueba',
+				    'password': 'prueba123'
+				    }
+
+				    response_token = cliente.post('/login/', data= usuario_login)
+				    # print(response_token)
+				    # print(response_token.json())
+				    assert response_token.status_code == 200
+				    assert response_token.json()['token_type'] == 'bearer'
+
+				    headers = {
+				        'Authorization':f"Bearer {response_token.json()['access token']}"
+				    }
+
+				    response = cliente.get('/user/', headers=headers)
+				    print(response.json(), 'response')
+				    print(len(response.json()))
+				    -------------------------------------------------------------------------------------------------------
+
+				def test_delete_database():
+				    db_path = os.path.join(os.path.dirname(__file__), 'test_db')
+
+				    # Cerrar todas las conexiones o sesiones de la base de datos
+				    engine_test.dispose()
+
+				    # Introducir un pequeño retraso antes de intentar eliminar el archivo
+				    time.sleep(2)
+
+				    # Intentar eliminar el archivo
+				    try:
+				        os.remove(db_path)
+				        print(f"Archivo de base de datos eliminado: {db_path}")
+				    except FileNotFoundError:
+				        print(f"El archivo de base de datos no existe: {db_path}")
+				    except Exception as e:
+				        print(f"Error al eliminar la base de datos: {e}")	
+
+	'Test obtener un usuario'
+
+		-Vamos a crear una funcion que se llame -test_obtener_usuario_por_id
+		-Despues vamos a colocar -response = cliente.get(/user/1)- el "1" es el query parametro, ahi vamos a posar el id para onbtener el 
+		 usuario, luego de eso  imprimimos, y luego hacer una verificacion con assert.	
+
+		-Por si en algun momento no tenemos que pasar el token, solo basta con pasar el response. 
+
+		 	ej:
+		 		def test_obtener_usuarios_por_id():
+				    usuario_login = {
+				        'username': 'prueba',
+				        'password': 'prueba123'
+				    }
+
+				    response_token = cliente.post('/login/', data= usuario_login)
+				    # print(response_token)
+				    # print(response_token.json())
+				    assert response_token.status_code == 200
+				    assert response_token.json()['token_type'] == 'bearer'
+
+				    headers = {
+				        'Authorization':f"Bearer {response_token.json()['access token']}"
+				    }
+
+				    response = cliente.get('/user/1', headers=headers)
+				    print(response.json())
+				    assert response.json()['username'] == 'prueba'
+
+	'Test eliminar usuario'
+
+		ej:
+			def test_eliminar_usuarios():
+			    usuario_login = {
+			        'username': 'prueba',
+			        'password': 'prueba123'
+			    }
+
+			    response_token = cliente.post('/login/', data= usuario_login)
+			    # print(response_token)
+			    # print(response_token.json())
+			    assert response_token.status_code == 200
+			    assert response_token.json()['token_type'] == 'bearer'
+
+			    headers = {
+			        'Authorization':f"Bearer {response_token.json()['access token']}"
+			    }
+
+			    response = cliente.delete('/user/1', headers=headers)
+			    print(response.json())
+			    assert response.json()['Respuesta'] == 'El usuario a sido eliminado correctamente'
+
+			    response_user = cliente.get('/user/1', headers=headers)
+			    print(response_user.json())
+
+			    assert response_user.json()['detail'] == 'No existe el usuario con el id 1'
+
+
+	'Test actualizar usuario'
+	
+
+		-Tenemos que tener en cuenta que para actualizar un usuario nuestra api recibe un id, y tambien recibe un body
+		-Lo que vamos a hacer es copiar el body completo que recibe nuetra api vamos a ir a la carpeta test.py y lo que vamos a implementar es 
+		 la funcion con el nombre - test_actualizar_usuarios()- yvamos a pegar el body .
+		-Lo que vamos a paarle de body va a ser lo que quiera modificar para hacer las pruebas, por ejemplo si quiero modificar el username
+		 solo pasaremos -'username': 'prueba_modificar' -
+
+		-Luego tenemos que hacer el response tipo patch y le pasamos el id correspondiente  
+
+
+		 	ej:
+
+		 		def test_actualizar_usuarios():
+				    usuario_login = {
+				        'username': 'prueba',
+				        'password': 'prueba123'
+				    }
+
+				    response_token = cliente.post('/login/', data= usuario_login)
+				    # print(response_token)
+				    # print(response_token.json())
+				    assert response_token.status_code == 200
+				    assert response_token.json()['token_type'] == 'bearer'
+
+				    headers = {
+				        'Authorization':f"Bearer {response_token.json()['access token']}"
+				    }
+
+				    usuario_body = {
+				        "username": "Prueba_modificar"
+				        }
+
+				    response = cliente.patch('/user/2', json=usuario_body, headers=headers)
+				    print(response.json())
+				    assert response.json()['Respuesta'] == 'El usuario ha sido modificado correctamente'
+				    res = cliente.get('/user/2', headers=headers)
+				    print(res.json())
+				    assert res.json()['username'] == 'Prueba_modificar'
+				    assert res.json()['nombre'] == 'string'
+				  
+
+							     
+	        		    
+
+
+														    
+																																													
 
 
 
